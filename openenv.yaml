@@ -1,0 +1,122 @@
+name: customer-support-triage
+description: >
+  Real-world customer support ticket triage and resolution environment
+  for evaluating LLM agents on genuine support tasks. Agents classify tickets
+  by category and priority, route to departments, draft professional responses,
+  and recommend resolution actions - all tasks that human support agents perform daily.
+version: "1.0.0"
+spec_version: "0.1.0"
+tags:
+  - openenv
+  - customer-support
+  - text
+  - real-world
+author: "OpenEnv Contributor"
+license: MIT
+repository: "https://huggingface.co/spaces/customer-support-triage"
+
+tasks:
+  - id: classification
+    name: Ticket Classification
+    difficulty: easy
+    description: >
+      Classify a support ticket into the correct category (billing, technical,
+      account, product, shipping) and assign the appropriate priority level
+      (low, medium, high, urgent). Uses clearly-scoped tickets.
+    max_steps: 1
+    scoring_weights:
+      classification: 0.6
+      priority: 0.4
+
+  - id: routing_response
+    name: Routing and Response Drafting
+    difficulty: medium
+    description: >
+      Classify a ticket, route it to the correct department, and draft a
+      professional customer-facing response. Requires understanding ticket
+      context and writing quality responses with proper tone.
+    max_steps: 1
+    scoring_weights:
+      classification: 0.15
+      priority: 0.10
+      department: 0.20
+      response: 0.55
+
+  - id: full_resolution
+    name: Full Ticket Resolution
+    difficulty: hard
+    description: >
+      Complete ticket resolution with full customer context analysis. Agent must
+      classify, route, draft a contextually-aware response referencing customer
+      history, and recommend specific resolution actions. Requires considering
+      SLAs, customer tier, lifetime value, and escalation history.
+    max_steps: 1
+    scoring_weights:
+      classification: 0.10
+      priority: 0.05
+      department: 0.10
+      response: 0.40
+      resolution_actions: 0.35
+
+action_space:
+  type: text
+  description: >
+    JSON object with fields: classification (str), priority (str),
+    department (str), response (str), resolution_actions (list[str]).
+    Required fields vary by task type.
+
+observation_space:
+  type: text
+  description: >
+    JSON object containing ticket details (subject, body, customer metadata),
+    task instructions, available categories/departments, and optional
+    customer history for the full_resolution task.
+
+reward_range: [0.0, 1.0]
+
+endpoints:
+  - path: /
+    method: GET
+    description: Health check and endpoint listing
+  - path: /reset
+    method: POST
+    description: Initialize a new episode with specified task
+    request_body:
+      task: string (classification, routing_response, full_resolution)
+      seed: optional integer for reproducibility
+    response: observation, reward (0.0), done (false), info
+  - path: /step
+    method: POST
+    description: Submit action and receive grading result
+    request_body: Action model (classification, priority, department, response, resolution_actions)
+    response: observation (with feedback), reward (0.0-1.0), done (true), info (grader breakdown)
+  - path: /state
+    method: GET
+    description: Get current observation without advancing episode
+
+grader:
+  type: deterministic
+  components:
+    - name: classification
+      method: exact_match_with_alias_resolution
+      score_range: [0.0, 1.0]
+    - name: priority
+      method: ordinal_distance_scoring
+      score_range: [0.0, 1.0]
+    - name: department
+      method: exact_match_with_alias_resolution
+      score_range: [0.0, 1.0]
+    - name: response
+      method: composite_heuristic
+      subcomponents:
+        - key_term_coverage
+        - greeting_present
+        - apology_when_needed
+        - actionable_content
+        - length_appropriateness
+        - personalization
+        - context_usage (hard task only)
+      score_range: [0.0, 1.0]
+    - name: resolution
+      method: action_matching_with_escalation_check
+      score_range: [0.0, 1.0]
