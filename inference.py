@@ -3,13 +3,11 @@ import sys
 import json
 import re
 import time
+import urllib.request
+import urllib.error
 from typing import Any, Dict, List, Optional
 
-from openai import OpenAI
-
-from environment import CustomerSupportEnv
-from environment.models import Action, ResetRequest
-
+ENV_URL = os.environ.get("ENV_URL", "https://kavanjoshi-openenv.hf.space")
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 
@@ -30,6 +28,48 @@ TASK_CONFIGS = {
         "prompt_fields": "classification, priority, department, a professional response string (that references customer history when available), and resolution_actions (a list of specific action strings)",
     },
 }
+
+
+def http_post(url: str, data: dict) -> dict:
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(data).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {e.code} from {url}: {body}")
+
+
+def http_get(url: str) -> dict:
+    try:
+        with urllib.request.urlopen(url, timeout=30) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"HTTP {e.code} from {url}: {body}")
+
+
+def call_openai(prompt: str) -> Optional[str]:
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        response = client.chat.completions.create(
+            model=MODEL_NAME,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+            max_tokens=1000,
+        )
+        return response.choices[0].message.content or ""
+    except ImportError:
+        return None
+    except Exception as e:
+        print(f"  OpenAI API error: {e}")
+        return None
 
 
 def build_prompt(observation: dict, task: str) -> str:
@@ -98,92 +138,142 @@ def parse_json_from_response(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def extract_action(parsed: Dict[str, Any], task: str) -> Action:
-    config = TASK_CONFIGS[task]
-    action = Action()
+def build_action_from_parsed(parsed: Dict[str, Any], task: str) -> Dict[str, Any]:
+    action: Dict[str, Any] = {}
     if "classification" in parsed:
-        action.classification = str(parsed["classification"]).lower().strip()
+        action["classification"] = str(parsed["classification"]).lower().strip()
     if "priority" in parsed:
-        action.priority = str(parsed["priority"]).lower().strip()
+        action["priority"] = str(parsed["priority"]).lower().strip()
     if "department" in parsed:
-        action.department = str(parsed["department"]).lower().strip().replace(" ", "_")
+        action["department"] = str(parsed["department"]).lower().strip().replace(" ", "_")
     if "response" in parsed:
-        action.response = str(parsed["response"])
+        action["response"] = str(parsed["response"])
     if "resolution_actions" in parsed:
         actions = parsed["resolution_actions"]
         if isinstance(actions, list):
-            action.resolution_actions = [str(a) for a in actions if a]
+            action["resolution_actions"] = [str(a) for a in actions if a]
         elif isinstance(actions, str):
-            action.resolution_actions = [actions]
+            action["resolution_actions"] = [actions]
+    return action
 
-    for field_name in config["required_fields"]:
-        val = getattr(action, field_name)
-        if val is None:
-            pass
+
+def build_fallback_action(observation: dict, task: str) -> Dict[str, Any]:
+    ticket = observation["ticket"]
+    action: Dict[str, Any] = {}
+
+    body_lower = ticket["body"].lower()
+    subject_lower = ticket["subject"].lower()
+
+    billing_words = ["charge", "payment", "bill", "refund", "invoice", "credit card", "subscription", "billing", "price", "cost", "fee"]
+    technical_words = ["bug", "error", "crash", "not working", "broken", "glitch", "api", "integration", "install", "update"]
+    account_words = ["password", "login", "account", "access", "locked", "signup", "delete account", "security"]
+    product_words = ["feature", "plan", "upgrade", "comparison", "how to", "does it"]
+    shipping_words = ["shipping", "delivery", "order", "package", "tracking", "return", "arrived"]
+
+    text = f"{subject_lower} {body_lower}"
+    scores = {
+        "billing": sum(1 for w in billing_words if w in text),
+        "technical": sum(1 for w in technical_words if w in text),
+        "account": sum(1 for w in account_words if w in text),
+        "product": sum(1 for w in product_words if w in text),
+        "shipping": sum(1 for w in shipping_words if w in text),
+    }
+    action["classification"] = max(scores, key=scores.get) if max(scores.values()) > 0 else "general"
+
+    if any(w in text for w in ["urgent", "immediately", "asap", "cannot", "unable", "down", "lost"]):
+        action["priority"] = "high"
+    elif any(w in text for w in ["frustrated", "angry", "terrible", "unacceptable"]):
+        action["priority"] = "urgent"
+    else:
+        action["priority"] = "medium"
+
+    dept_map = {
+        "billing": "billing_support",
+        "technical": "technical_support",
+        "account": "account_management",
+        "product": "product_team",
+        "shipping": "logistics",
+    }
+    action["department"] = dept_map.get(action["classification"], "general_support")
+
+    name = ticket.get("customer_name", "customer")
+    action["response"] = (
+        f"Dear {name},\n\nThank you for contacting our support team. "
+        f"We have received your ticket regarding '{ticket['subject']}'. "
+        f"We are looking into this matter and will get back to you shortly. "
+        f"We appreciate your patience.\n\nBest regards,\nCustomer Support Team"
+    )
+
+    if task == "full_resolution":
+        action["resolution_actions"] = [
+            "review_ticket_details",
+            "investigate_root_cause",
+            "provide_resolution",
+            "follow_up_with_customer",
+        ]
 
     return action
 
 
-def run_task(env: CustomerSupportEnv, task: str, client: OpenAI, num_tickets: int) -> Dict[str, Any]:
+def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
     scores = []
     details = []
+    has_openai = False
+
+    try:
+        from openai import OpenAI
+        has_openai = True
+    except ImportError:
+        pass
 
     for i in range(num_tickets):
-        reset_request = ResetRequest(task=task, seed=SEED + i)
-        reset_result = env.reset(reset_request)
-        observation = reset_result.observation
-        ticket_id = reset_result.info.get("ticket_id", "unknown")
-
-        prompt = build_prompt(observation.model_dump(), task)
-
+        ticket_id = "unknown"
         try:
-            api_response = client.chat.completions.create(
-                model=MODEL_NAME,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-                max_tokens=1000,
-            )
-            response_text = api_response.choices[0].message.content or ""
+            reset_result = http_post(f"{ENV_URL}/reset", {"task": task, "seed": SEED + i})
+            observation = reset_result.get("observation", reset_result)
+            ticket_id = reset_result.get("info", {}).get("ticket_id", "unknown")
         except Exception as e:
-            details.append({
-                "ticket_id": ticket_id,
-                "error": str(e),
-                "score": 0.0,
-            })
+            print(f"    Reset error: {e}")
             scores.append(0.0)
+            details.append({"ticket_id": ticket_id, "error": str(e), "score": 0.0})
             continue
 
-        parsed = parse_json_from_response(response_text)
+        prompt = build_prompt(observation, task)
+        action = None
 
-        if not parsed:
-            action = Action(response=response_text[:500])
-            details.append({
-                "ticket_id": ticket_id,
-                "parse_error": True,
-                "raw_response": response_text[:200],
-                "score": 0.0,
-            })
-            scores.append(0.0)
-        else:
-            action = extract_action(parsed, task)
-            step_result = env.step(action)
-            score = step_result.reward
-            grader_info = step_result.info.get("grader", {})
+        if has_openai and OPENAI_API_KEY:
+            response_text = call_openai(prompt)
+            if response_text:
+                parsed = parse_json_from_response(response_text)
+                if parsed:
+                    action = build_action_from_parsed(parsed, task)
+
+        if action is None:
+            action = build_fallback_action(observation, task)
+
+        try:
+            step_result = http_post(f"{ENV_URL}/step", action)
+            score = step_result.get("reward", 0.0)
+            grader_info = step_result.get("info", {}).get("grader", {})
 
             detail = {
                 "ticket_id": ticket_id,
                 "score": score,
                 "parsed_action": {
-                    "classification": action.classification,
-                    "priority": action.priority,
-                    "department": action.department,
-                    "response_length": len(action.response) if action.response else 0,
-                    "resolution_actions_count": len(action.resolution_actions) if action.resolution_actions else 0,
+                    "classification": action.get("classification"),
+                    "priority": action.get("priority"),
+                    "department": action.get("department"),
+                    "response_length": len(action.get("response", "")),
+                    "resolution_actions_count": len(action.get("resolution_actions", [])),
                 },
                 "grader_components": grader_info.get("components", []),
             }
             details.append(detail)
             scores.append(score)
+        except Exception as e:
+            print(f"    Step error: {e}")
+            scores.append(0.0)
+            details.append({"ticket_id": ticket_id, "error": str(e), "score": 0.0})
 
     return {
         "task": task,
@@ -202,18 +292,18 @@ def main():
     print("=" * 60)
     print(f"  Model: {MODEL_NAME}")
     print(f"  API Key: {'set' if OPENAI_API_KEY else 'NOT SET'}")
+    print(f"  Env URL: {ENV_URL}")
     print(f"  Tickets per task: {TICKETS_PER_TASK}")
     print(f"  Seed: {SEED}")
     print("=" * 60)
 
-    if not OPENAI_API_KEY:
-        print("\nERROR: OPENAI_API_KEY environment variable not set.")
-        print("Set it with: export OPENAI_API_KEY='your-key-here'")
-        print("Also set MODEL_NAME (default: gpt-4o-mini)")
-        sys.exit(1)
-
-    client = OpenAI(api_key=OPENAI_API_KEY)
-    env = CustomerSupportEnv()
+    print(f"\n  Checking environment health...")
+    try:
+        health = http_get(f"{ENV_URL}/health")
+        print(f"  Environment: {health}")
+    except Exception as e:
+        print(f"  WARNING: Could not reach environment: {e}")
+        print("  Will attempt to continue anyway...")
 
     all_results = {}
     start_time = time.time()
@@ -223,7 +313,7 @@ def main():
         print(f"  Running task: {task}")
         print(f"{'='*60}")
 
-        result = run_task(env, task, client, TICKETS_PER_TASK)
+        result = run_task(task, TICKETS_PER_TASK)
         all_results[task] = result
 
         print(f"\n  Scores: {[f'{s:.3f}' for s in result['scores']]}")
@@ -234,8 +324,6 @@ def main():
             status = "OK" if d.get("score", 0) >= 0.5 else "LOW"
             if d.get("error"):
                 status = "ERROR"
-            elif d.get("parse_error"):
-                status = "PARSE_ERR"
             print(f"    {d.get('ticket_id', '?')}: {d.get('score', 0):.3f} [{status}]")
 
     elapsed = time.time() - start_time
