@@ -1,7 +1,7 @@
 import json
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from environment import get_env
@@ -29,16 +29,24 @@ async def root():
 
 
 @app.post("/reset")
-async def reset(request: ResetRequest):
+async def reset(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
     env = get_env()
-    result = env.reset(request)
+    result = env.reset(ResetRequest(**body))
     return result.model_dump()
 
 
 @app.post("/step")
-async def step(action: Action):
+async def step(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
     env = get_env()
-    result = env.step(action)
+    result = env.step(Action(**body))
     return result.model_dump()
 
 

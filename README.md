@@ -1,3 +1,9 @@
+---
+title: Customer Support Triage
+sdk: docker
+app_port: 7860
+---
+
 # Customer Support Triage - OpenEnv Environment
 
 A real-world customer support ticket triage and resolution environment for evaluating LLM agents on genuine support tasks.
