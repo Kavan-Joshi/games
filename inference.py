@@ -226,6 +226,8 @@ def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
     except ImportError:
         pass
 
+    print(f"[START] task={task}", flush=True)
+
     for i in range(num_tickets):
         ticket_id = "unknown"
         try:
@@ -233,9 +235,10 @@ def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
             observation = reset_result.get("observation", reset_result)
             ticket_id = reset_result.get("info", {}).get("ticket_id", "unknown")
         except Exception as e:
-            print(f"    Reset error: {e}")
+            print(f"    Reset error: {e}", flush=True)
             scores.append(0.0)
             details.append({"ticket_id": ticket_id, "error": str(e), "score": 0.0})
+            print(f"[STEP] step={i+1} reward=0.0", flush=True)
             continue
 
         prompt = build_prompt(observation, task)
@@ -251,6 +254,7 @@ def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
         if action is None:
             action = build_fallback_action(observation, task)
 
+        score = 0.0
         try:
             step_result = http_post(f"{ENV_URL}/step", action)
             score = step_result.get("reward", 0.0)
@@ -271,15 +275,20 @@ def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
             details.append(detail)
             scores.append(score)
         except Exception as e:
-            print(f"    Step error: {e}")
+            print(f"    Step error: {e}", flush=True)
             scores.append(0.0)
             details.append({"ticket_id": ticket_id, "error": str(e), "score": 0.0})
+
+        print(f"[STEP] step={i+1} reward={score:.4f}", flush=True)
+
+    mean_score = sum(scores) / len(scores) if scores else 0.0
+    print(f"[END] task={task} score={mean_score:.4f} steps={num_tickets}", flush=True)
 
     return {
         "task": task,
         "num_tickets": num_tickets,
         "scores": scores,
-        "mean_score": sum(scores) / len(scores) if scores else 0.0,
+        "mean_score": mean_score,
         "min_score": min(scores) if scores else 0.0,
         "max_score": max(scores) if scores else 0.0,
         "details": details,
@@ -287,60 +296,62 @@ def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
 
 
 def main():
-    print("=" * 60)
-    print("  CUSTOMER SUPPORT TRIAGE - BASELINE INFERENCE")
-    print("=" * 60)
-    print(f"  Model: {MODEL_NAME}")
-    print(f"  API Key: {'set' if OPENAI_API_KEY else 'NOT SET'}")
-    print(f"  Env URL: {ENV_URL}")
-    print(f"  Tickets per task: {TICKETS_PER_TASK}")
-    print(f"  Seed: {SEED}")
-    print("=" * 60)
+    p = lambda msg: print(msg, flush=True)
 
-    print(f"\n  Checking environment health...")
+    p("=" * 60)
+    p("  CUSTOMER SUPPORT TRIAGE - BASELINE INFERENCE")
+    p("=" * 60)
+    p(f"  Model: {MODEL_NAME}")
+    p(f"  API Key: {'set' if OPENAI_API_KEY else 'NOT SET'}")
+    p(f"  Env URL: {ENV_URL}")
+    p(f"  Tickets per task: {TICKETS_PER_TASK}")
+    p(f"  Seed: {SEED}")
+    p("=" * 60)
+
+    p("\n  Checking environment health...")
     try:
         health = http_get(f"{ENV_URL}/health")
-        print(f"  Environment: {health}")
+        p(f"  Environment: {health}")
     except Exception as e:
-        print(f"  WARNING: Could not reach environment: {e}")
-        print("  Will attempt to continue anyway...")
+        p(f"  WARNING: Could not reach environment: {e}")
+        p("  Will attempt to continue anyway...")
 
     all_results = {}
     start_time = time.time()
 
     for task in ["classification", "routing_response", "full_resolution"]:
-        print(f"\n{'='*60}")
-        print(f"  Running task: {task}")
-        print(f"{'='*60}")
+        p(f"\n{'='*60}")
+        p(f"  Running task: {task}")
+        p(f"{'='*60}")
 
         result = run_task(task, TICKETS_PER_TASK)
         all_results[task] = result
 
-        print(f"\n  Scores: {[f'{s:.3f}' for s in result['scores']]}")
-        print(f"  Mean:   {result['mean_score']:.3f}")
-        print(f"  Range:  [{result['min_score']:.3f}, {result['max_score']:.3f}]")
+        p(f"\n  Scores: {[f'{s:.3f}' for s in result['scores']]}")
+        p(f"  Mean:   {result['mean_score']:.3f}")
+        p(f"  Range:  [{result['min_score']:.3f}, {result['max_score']:.3f}]")
 
         for d in result["details"]:
             status = "OK" if d.get("score", 0) >= 0.5 else "LOW"
             if d.get("error"):
                 status = "ERROR"
-            print(f"    {d.get('ticket_id', '?')}: {d.get('score', 0):.3f} [{status}]")
+            p(f"    {d.get('ticket_id', '?')}: {d.get('score', 0):.3f} [{status}]")
 
     elapsed = time.time() - start_time
 
-    print(f"\n{'#'*60}")
-    print(f"  SUMMARY")
-    print(f"{'#'*60}")
+    p(f"\n{'#'*60}")
+    p("  SUMMARY")
+    p(f"{'#'*60}")
 
     overall_scores = []
     for task, result in all_results.items():
-        print(f"  {task:25s}: mean={result['mean_score']:.3f}  range=[{result['min_score']:.3f}, {result['max_score']:.3f}]")
+        p(f"  {task:25s}: mean={result['mean_score']:.3f}  range=[{result['min_score']:.3f}, {result['max_score']:.3f}]")
         overall_scores.extend(result["scores"])
 
     overall_mean = sum(overall_scores) / len(overall_scores) if overall_scores else 0.0
-    print(f"\n  OVERALL MEAN SCORE: {overall_mean:.3f}")
-    print(f"  TOTAL RUNTIME: {elapsed:.1f}s")
-    print(f"{'#'*60}")
+    p(f"\n  OVERALL MEAN SCORE: {overall_mean:.3f}")
+    p(f"  TOTAL RUNTIME: {elapsed:.1f}s")
+    p(f"{'#'*60}")
 
     output = {
         "model": MODEL_NAME,
@@ -360,7 +371,7 @@ def main():
     output_path = os.environ.get("OUTPUT_PATH", "baseline_results.json")
     with open(output_path, "w") as f:
         json.dump(output, f, indent=2)
-    print(f"\n  Results saved to {output_path}")
+    p(f"\n  Results saved to {output_path}")
 
 
 if __name__ == "__main__":
