@@ -10,6 +10,8 @@ from typing import Any, Dict, List, Optional
 ENV_URL = os.environ.get("ENV_URL", "https://kavanjoshi-openenv.hf.space")
 MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-4o-mini")
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
+API_BASE_URL = os.environ.get("API_BASE_URL", "")
+API_KEY = os.environ.get("API_KEY", "")
 
 TICKETS_PER_TASK = 5
 SEED = 42
@@ -57,7 +59,18 @@ def http_get(url: str) -> dict:
 def call_openai(prompt: str) -> Optional[str]:
     try:
         from openai import OpenAI
-        client = OpenAI(api_key=OPENAI_API_KEY)
+
+        api_key = API_KEY or OPENAI_API_KEY
+        base_url = API_BASE_URL or None
+
+        if not api_key:
+            return None
+
+        client_kwargs = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+
+        client = OpenAI(**client_kwargs)
         response = client.chat.completions.create(
             model=MODEL_NAME,
             messages=[{"role": "user", "content": prompt}],
@@ -68,7 +81,7 @@ def call_openai(prompt: str) -> Optional[str]:
     except ImportError:
         return None
     except Exception as e:
-        print(f"  OpenAI API error: {e}")
+        print(f"  OpenAI API error: {e}", flush=True)
         return None
 
 
@@ -226,6 +239,8 @@ def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
     except ImportError:
         pass
 
+    has_api_key = bool(API_KEY or OPENAI_API_KEY)
+
     print(f"[START] task={task}", flush=True)
 
     for i in range(num_tickets):
@@ -244,7 +259,7 @@ def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
         prompt = build_prompt(observation, task)
         action = None
 
-        if has_openai and OPENAI_API_KEY:
+        if has_openai and has_api_key:
             response_text = call_openai(prompt)
             if response_text:
                 parsed = parse_json_from_response(response_text)
