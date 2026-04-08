@@ -56,32 +56,38 @@ def http_get(url: str) -> dict:
         raise RuntimeError(f"HTTP {e.code} from {url}: {body}")
 
 
-def call_openai(prompt: str) -> Optional[str]:
-    try:
-        from openai import OpenAI
-
-        api_key = API_KEY or OPENAI_API_KEY
-        base_url = API_BASE_URL or None
-
-        if not api_key:
-            return None
-
-        client_kwargs = {"api_key": api_key}
-        if base_url:
-            client_kwargs["base_url"] = base_url
-
-        client = OpenAI(**client_kwargs)
-        response = client.chat.completions.create(
-            model=MODEL_NAME,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
-            max_tokens=1000,
-        )
-        return response.choices[0].message.content or ""
-    except ImportError:
+def call_llm(prompt: str) -> Optional[str]:
+    api_key = API_KEY or OPENAI_API_KEY
+    if not api_key:
+        print("  WARNING: No API key available, using fallback", flush=True)
         return None
+
+    base_url = (API_BASE_URL or "https://api.openai.com/v1").rstrip("/")
+    url = f"{base_url}/chat/completions"
+
+    payload = {
+        "model": MODEL_NAME,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.0,
+        "max_tokens": 1000,
+    }
+
+    req = urllib.request.Request(
+        url,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=60) as resp:
+            result = json.loads(resp.read().decode("utf-8"))
+            return result["choices"][0]["message"]["content"] or ""
     except Exception as e:
-        print(f"  OpenAI API error: {e}", flush=True)
+        print(f"  LLM API error: {e}", flush=True)
         return None
 
 
@@ -231,16 +237,6 @@ def build_fallback_action(observation: dict, task: str) -> Dict[str, Any]:
 def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
     scores = []
     details = []
-    has_openai = False
-
-    try:
-        from openai import OpenAI
-        has_openai = True
-    except ImportError:
-        pass
-
-    has_api_key = bool(API_KEY or OPENAI_API_KEY)
-
     print(f"[START] task={task}", flush=True)
 
     for i in range(num_tickets):
@@ -259,12 +255,11 @@ def run_task(task: str, num_tickets: int) -> Dict[str, Any]:
         prompt = build_prompt(observation, task)
         action = None
 
-        if has_openai and has_api_key:
-            response_text = call_openai(prompt)
-            if response_text:
-                parsed = parse_json_from_response(response_text)
-                if parsed:
-                    action = build_action_from_parsed(parsed, task)
+        response_text = call_llm(prompt)
+        if response_text:
+            parsed = parse_json_from_response(response_text)
+            if parsed:
+                action = build_action_from_parsed(parsed, task)
 
         if action is None:
             action = build_fallback_action(observation, task)
