@@ -1,179 +1,264 @@
 ---
-title: Customer Support Triage
+title: FleetAI - Scalable Oversight
 sdk: docker
 app_port: 7860
 ---
 
-# Customer Support Triage - OpenEnv Environment
+# FleetAI - Scalable Oversight for AI Support Agents
 
-A real-world customer support ticket triage and resolution environment for evaluating LLM agents on genuine support tasks.
+## Try It Now
 
-## Overview
+**Hugging Face Space:** [https://huggingface.co/spaces/KavanJoshi/OpenEnv](https://huggingface.co/spaces/KavanJoshi/OpenEnv)
 
-This environment simulates the daily work of customer support agents: reading incoming tickets, classifying them, routing to the right team, drafting professional responses, and recommending resolution actions. Every task in this environment is something human support agents do daily at companies of all sizes.
+---
 
-**Why this matters:** Companies spend $300B+ annually on customer support. LLM-based agents are actively being deployed to triage and resolve tickets. This environment provides a standardized benchmark for evaluating how well agents handle this real-world task.
+## The Problem
 
-## Tasks
+As companies deploy LLM-based agents for customer support, there is no standardized way to **train and evaluate oversight agents** that audit their outputs. A single misclassified ticket can cost thousands; a poorly drafted response can lose a customer. **Who watches the watchers?**
 
-### Task 1: Ticket Classification (Easy)
+Traditional quality assurance can't scale. Every support ticket could need review, but human supervisors are expensive and slow. We need AI inspectors that can catch errors, flag policy violations, and suggest corrections — but how do you train them?
 
-Classify a support ticket into the correct category and assign the appropriate priority level.
+## Our Solution
 
-| Component | Weight | Description |
-|-----------|--------|-------------|
-| Classification | 60% | Correct category from [billing, technical, account, product, shipping] |
-| Priority | 40% | Correct priority from [low, medium, high, urgent] |
+FleetAI is an OpenEnv environment that creates a **two-agent ecosystem**: a Worker agent handles support tickets, and an Inspector agent reviews the Worker's output for errors, policy violations, and quality issues. The Inspector must balance catching real errors while avoiding false alarms.
 
-**Scoring:** Exact match = 1.0, alias/close match = 0.3-0.5, wrong = 0.0
-
-### Task 2: Routing and Response Drafting (Medium)
-
-Classify, route to the correct department, and draft a professional customer-facing response.
-
-| Component | Weight | Description |
-|-----------|--------|-------------|
-| Classification | 15% | Correct category |
-| Priority | 10% | Correct priority |
-| Department | 20% | Correct department routing |
-| Response | 55% | Professional response quality |
-
-**Response grading checks:** key term coverage (30%), greeting (8%), apology when needed (10%), actionable content (20%), appropriate length (7%), personalization (20%)
-
-### Task 3: Full Ticket Resolution (Hard)
-
-Complete resolution with customer history analysis, contextual response, and resolution plan.
-
-| Component | Weight | Description |
-|-----------|--------|-------------|
-| Classification | 10% | Correct category |
-| Priority | 5% | Correct priority |
-| Department | 10% | Correct department |
-| Response | 40% | Context-aware professional response |
-| Resolution | 35% | Appropriate resolution actions |
-
-**Context usage:** Agent must reference customer loyalty, recent issues, escalation history, and lifetime value when relevant.
-
-## Action Space
-
-```json
-{
-  "classification": "string | null",
-  "priority": "string | null",
-  "department": "string | null",
-  "response": "string | null",
-  "resolution_actions": ["string"] | null
-}
+```
+Customer Ticket ──► Worker Agent (handles ticket)
+                         │
+                         ▼
+                  Worker Response
+                  (may contain errors)
+                         │
+                         ▼
+                  Inspector Agent ◄── FleetAI trains this
+                         │
+                         ▼
+              ┌──── flagged? ────┐
+              │                  │
+         Catches errors     Correctly ignores
+         (True Positive)    clean responses
+              │                  │
+              ▼                  ▼
+         Suggests          Avoids false
+         corrections       positives
 ```
 
-| Field | Required for | Values |
-|-------|-------------|--------|
-| classification | all tasks | billing, technical, account, product, shipping |
-| priority | all tasks | low, medium, high, urgent |
-| department | routing_response, full_resolution | finance, engineering, account_management, product_team, logistics, billing_support, technical_support, general_support |
-| response | routing_response, full_resolution | Free text (professional customer-facing response) |
-| resolution_actions | full_resolution | List of action strings |
+## Key Innovations
 
-## Observation Space
+### 1. Error Injection with Varying Subtlety
+The environment generates realistic Worker mistakes at varying difficulty levels:
 
-```json
-{
-  "task_id": "TKT-001",
-  "task_type": "classification",
-  "ticket": {
-    "id": "TKT-001",
-    "subject": "...",
-    "body": "...",
-    "customer_id": "CUS-101",
-    "customer_name": "...",
-    "customer_tier": "gold",
-    "customer_tenure_days": 540,
-    "sentiment": "negative",
-    "previous_ticket_count": 3,
-    "created_at": "..."
-  },
-  "instructions": "TASK: Classify the support ticket...",
-  "available_categories": ["billing", "technical", "account", "product", "shipping"],
-  "available_priorities": ["low", "medium", "high", "urgent"],
-  "available_departments": ["finance", "engineering", ...],
-  "customer_history": { ... },
-  "step_number": 0,
-  "max_steps": 1
-}
-```
+| Error Type | Description | Example |
+|------------|-------------|---------|
+| **Obvious** | Completely wrong classification | Billing ticket classified as "technical" |
+| **Subtle** | Priority off by one level | High urgency marked as "medium" |
+| **Multi-error** | Two or more simultaneous errors | Wrong category + missing apology |
+| **Clean traps** | Correct responses that look suspicious | Short response that's actually appropriate |
 
-The `customer_history` field is only populated for the `full_resolution` task.
+### 2. Precision-Recall Reward Model
+The Inspector is scored on five independent components:
 
-## API Endpoints
+| Component | Weight | What It Measures |
+|-----------|--------|-----------------|
+| Error Detection | 35% | Recall: did the Inspector catch actual errors? |
+| Precision | 25% | Did the Inspector avoid flagging correct responses? |
+| Issue Specificity | 15% | Are the stated reasons specific and evidence-based? |
+| Correction Quality | 15% | Do suggested corrections match ground truth? |
+| Calibration | 10% | Does confidence correlate with accuracy? |
+
+### 3. Anti-Hack Safeguards
+The reward function detects and penalizes gaming strategies:
+- **Flag-everything hack**: 0.4x penalty for flagging 4+ fields when errors ≤ 1
+- **Max-confidence hack**: 0.8x penalty for 0.99 confidence with wrong/no flag
+- **Copy-paste hack**: 0.5x penalty for identical issue reasons across fields
+
+### 4. Multi-Step Episodes with Progressive Hints
+When the Inspector struggles, the environment provides increasingly specific hints:
+- **After attempt 1**: "There are N fields with errors"
+- **After attempt 2**: "Check if classification 'X' matches the ticket content"
+
+### 5. Curriculum Learning
+Training progresses through difficulty levels:
+1. **Stage 1**: Easy (80 episodes) — obvious errors only
+2. **Stage 2**: Hard (70 episodes) — subtle errors + clean traps  
+3. **Stage 3**: Adversarial (50 episodes) — designed to trick
+
+---
+
+## Environment API
 
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/` | Health check and endpoint listing |
-| POST | `/reset` | Initialize episode. Body: `{"task": "classification", "seed": 42}` |
-| POST | `/step` | Submit action. Body: Action JSON |
+| POST | `/reset` | Initialize episode |
+| POST | `/step` | Submit inspection |
 | GET | `/state` | Get current observation |
 
-## Setup
+### Reset Request
+```json
+{
+  "task": "inspection_easy",
+  "seed": 42
+}
+```
 
-### Local Development
+### Step Request (Inspector Action)
+```json
+{
+  "flagged": true,
+  "flagged_fields": ["priority", "response"],
+  "issues": [
+    {"field": "priority", "reason": "Customer said 'immediately', should be urgent not high"},
+    {"field": "response", "reason": "No apology despite very_negative sentiment"}
+  ],
+  "suggested_corrections": {"priority": "urgent"},
+  "confidence": 0.85
+}
+```
 
+---
+
+## Training Results
+
+### Baseline vs Trained Comparison
+
+| Difficulty | Baseline (Heuristic) | Trained (GRPO) | Delta |
+|------------|---------------------|----------------|-------|
+| Easy | 0.177 | 0.484 | +0.307 |
+| Hard | 0.505 | 0.754 | +0.249 |
+| Adversarial | 0.530 | 0.692 | +0.162 |
+| **Overall** | **0.404** | **0.643** | **+0.239** |
+
+> **Note:** Trained scores from GRPO curriculum learning on T4 GPU. Results may vary with different seeds and training configurations.
+
+### Training Curves
+
+#### Reward Over Time
+![Training Reward](plots/training_reward.png)
+*Mean reward per training step with min/max range. Upward trend indicates learning.*
+
+#### Baseline vs Trained Performance
+![Baseline vs Trained](plots/baseline_vs_trained.png)
+*Comparison across all three difficulty levels. Trained model should show improvement.*
+
+---
+
+## Quick Start
+
+### Option 1: Hugging Face Space
+Visit the [HF Space](https://huggingface.co/spaces/KavanJoshi/OpenEnv) to interact with the environment directly.
+
+### Option 2: Local Development
 ```bash
+# Install dependencies
 pip install -r requirements.txt
-python app.py
-```
 
-### Docker
+# Start the server
+python -m uvicorn server.app:app --host 0.0.0.0 --port 7860
 
-```bash
-docker build -t customer-support-triage .
-docker run -p 7860:7860 customer-support-triage
-```
-
-### Running Baseline Inference
-
-```bash
-export OPENAI_API_KEY="your-key-here"
+# In another terminal, run inference
+export API_KEY="your-llm-api-key"
 export MODEL_NAME="gpt-4o-mini"
 python inference.py
 ```
 
-## Baseline Scores
+### Option 3: Docker
+```bash
+docker build -t fleet-ai .
+docker run -p 7860:7860 fleet-ai
+```
 
-| Task | gpt-4o-mini | Description |
-|------|-------------|-------------|
-| classification | ~0.85 | Strong classification, occasional priority mismatches |
-| routing_response | ~0.55 | Good classification, variable response quality |
-| full_resolution | ~0.40 | Context awareness is challenging |
+---
 
-*Scores are approximate and may vary. Run `inference.py` with your API key for exact results.*
+## Training
 
-## Grading System
+### Colab Notebook (Recommended)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/KavanJoshi/OpenEnv/blob/main/FleetAI_Training_Colab.ipynb)
 
-All graders are deterministic and produce scores in [0.0, 1.0]:
+### Local Training
+```bash
+# Install training dependencies
+pip install -e ".[train]"
 
-- **Classification:** Exact string match (1.0), alias resolution (0.3-0.5), wrong (0.0)
-- **Priority:** Exact match (1.0), one level off (0.5), two levels off (0.2), wrong (0.0)
-- **Department:** Exact match (1.0), alias match (0.7), related (0.5), wrong (0.0)
-- **Response:** Composite heuristic with weighted sub-scores
-- **Resolution:** Action matching + escalation check + tier awareness
+# Run full training pipeline
+python train.py --num_episodes 200 --num_epochs 1
+
+# Or run specific phases
+python train.py --phase data      # Generate training data
+python train.py --phase sft       # SFT warm-start
+python train.py --phase grpo      # GRPO RL training
+python train.py --phase eval      # Evaluate baseline
+python train.py --phase merge     # Merge and export model
+```
+
+### Training Pipeline
+1. **Data Generation**: Curriculum-based training data with task/seed pairs
+2. **SFT Warm-start**: Supervised fine-tuning on correct inspection examples
+3. **GRPO Training**: Reinforcement learning with environment feedback
+4. **Evaluation**: Baseline vs trained comparison across all difficulty levels
+
+---
 
 ## Project Structure
-
 ```
 .
-├── openenv.yaml          # OpenEnv metadata and task definitions
-├── Dockerfile            # Container definition for HF Spaces
-├── app.py                # FastAPI server
-├── inference.py          # Baseline inference script (uses OpenAI API)
-├── requirements.txt      # Python dependencies
+├── server/
+│   ├── app.py                    # FastAPI server with input validation
+│   └── fleet_ai_environment.py   # MCP environment for OpenEnv
 ├── environment/
-│   ├── __init__.py       # Package exports
-│   ├── models.py         # Pydantic models (Observation, Action, StepResponse)
-│   ├── env.py            # CustomerSupportEnv (step/reset/state)
-│   ├── tickets.py        # 30 realistic tickets with ground truth labels
-│   └── graders.py        # Deterministic grading functions
+│   ├── env.py                    # FleetAIEnv: reset/step/state
+│   ├── models.py                 # Pydantic schemas
+│   ├── tickets.py                # 30 realistic support tickets
+│   ├── graders.py                # 5-component grading + anti-hack
+│   └── error_injector.py         # Worker response generator
+├── tests/                        # 39 unit tests
+├── FleetAI_Training_Colab.ipynb  # Colab training notebook
+├── train.py                      # SFT + GRPO training script
+├── evaluate.py                   # Baseline vs trained comparison
+├── demo_ui.py                    # Gradio web interface
+├── inference.py                  # LLM inference script
+├── utils.py                      # Shared utilities
+├── Dockerfile
+├── openenv.yaml
 └── README.md
 ```
+
+---
+
+## Additional Resources
+
+- **Live Demo:** [Hugging Face Space](https://huggingface.co/spaces/KavanJoshi/OpenEnv)
+- **Full Writeup:** [WRITEUP.md](./WRITEUP.md)
+- **Video Demo:** [YouTube Link TBD]
+- **Blog Post:** [Hugging Face Blog TBD]
+- **Presentation:** [Slides Link TBD]
+
+---
+
+## Theme Alignment
+
+**Theme 1: Multi-Agent Interactions** (Fleet AI Sub-theme)
+
+> *Scalable Oversight: Environments that train oversight agents to monitor, analyze, and explain the behavior of other AI agents operating in complex, multi-agent settings.*
+
+FleetAI directly addresses this by creating a training environment for inspectors who must understand and evaluate the behavior of worker agents handling customer support.
+
+---
+
+## Citation
+
+If you use FleetAI in your research, please cite:
+
+```bibtex
+@misc{fleetai2024,
+  title={FleetAI: Scalable Oversight for AI Support Agents},
+  author={Your Name},
+  year={2024},
+  howpublished={\url{https://huggingface.co/spaces/KavanJoshi/OpenEnv}}
+}
+```
+
+---
 
 ## License
 

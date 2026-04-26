@@ -1,0 +1,510 @@
+{
+  "total": 30,
+  "passed": 4,
+  "failed": 26,
+  "pass_rate": 13.3,
+  "avg_score": 0.1533,
+  "by_issue_type": {
+    "Delivery": {
+      "count": 7,
+      "pass": 0,
+      "fail": 7,
+      "avg_score": 0.0771
+    },
+    "Payment": {
+      "count": 4,
+      "pass": 2,
+      "fail": 2,
+      "avg_score": 0.3513
+    },
+    "Login": {
+      "count": 4,
+      "pass": 0,
+      "fail": 4,
+      "avg_score": 0.105
+    },
+    "Return": {
+      "count": 3,
+      "pass": 1,
+      "fail": 2,
+      "avg_score": 0.2692
+    },
+    "payment": {
+      "count": 5,
+      "pass": 1,
+      "fail": 4,
+      "avg_score": 0.1775
+    },
+    "delivery": {
+      "count": 3,
+      "pass": 0,
+      "fail": 3,
+      "avg_score": 0.0833
+    },
+    "return": {
+      "count": 1,
+      "pass": 0,
+      "fail": 1,
+      "avg_score": 0.04
+    },
+    "login": {
+      "count": 1,
+      "pass": 0,
+      "fail": 1,
+      "avg_score": 0.17
+    },
+    "Prime": {
+      "count": 1,
+      "pass": 0,
+      "fail": 1,
+      "avg_score": 0.04
+    },
+    "General": {
+      "count": 1,
+      "pass": 0,
+      "fail": 1,
+      "avg_score": 0.04
+    }
+  },
+  "results": [
+    {
+      "ticket_id": "TKT-1001",
+      "issue_type": "Delivery",
+      "sub_issue": "Late Delivery",
+      "notes": "typo + missing resolved date",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1002",
+      "issue_type": "Payment",
+      "sub_issue": "Double Charge",
+      "notes": "mixed date formats",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [],
+      "score": 0.17,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1003",
+      "issue_type": "Login",
+      "sub_issue": "Password Reset",
+      "notes": "rating as text",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "department"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1004",
+      "issue_type": "Delivery",
+      "sub_issue": "Damaged Item",
+      "notes": "case mismatch",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [],
+      "score": 0.17,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1005",
+      "issue_type": "Return",
+      "sub_issue": "Return Request",
+      "notes": "closed but no resolved date",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "classification"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1006",
+      "issue_type": "payment",
+      "sub_issue": "Failed Payment",
+      "notes": "blank agent + null placeholder",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1007",
+      "issue_type": "delivery",
+      "sub_issue": "Late Delivery",
+      "notes": "inconsistent issue casing",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1008",
+      "issue_type": "Login",
+      "sub_issue": "Password Reset",
+      "notes": "status uppercase",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [],
+      "score": 0.17,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1009",
+      "issue_type": "Delivery",
+      "sub_issue": "Missing Items",
+      "notes": "normal-ish row",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1010",
+      "issue_type": "payment",
+      "sub_issue": "Refund Delay",
+      "notes": "duplicate with next row",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [],
+      "score": 0.17,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1011",
+      "issue_type": "payment",
+      "sub_issue": "Refund Delay",
+      "notes": "duplicate of TKT-1010",
+      "flagged": true,
+      "flagged_fields": [
+        "response",
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.5975,
+      "status": "PASS"
+    },
+    {
+      "ticket_id": "TKT-1012",
+      "issue_type": "Return",
+      "sub_issue": "Refund Delay",
+      "notes": "slow resolution",
+      "flagged": true,
+      "flagged_fields": [
+        "response",
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.5975,
+      "status": "PASS"
+    },
+    {
+      "ticket_id": "TKT-1013",
+      "issue_type": "Delivery",
+      "sub_issue": "Wrong Address",
+      "notes": "",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response",
+        "response"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1014",
+      "issue_type": "Login",
+      "sub_issue": "Account Security",
+      "notes": "security issue should be urgent",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [],
+      "score": 0.17,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1015",
+      "issue_type": "payment",
+      "sub_issue": "Card Declined",
+      "notes": "",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response",
+        "response"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1016",
+      "issue_type": "delivery",
+      "sub_issue": "Lost Package",
+      "notes": "typo",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [],
+      "score": 0.17,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1017",
+      "issue_type": "return",
+      "sub_issue": "Wrong Product",
+      "notes": "typo",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "department"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1018",
+      "issue_type": "login",
+      "sub_issue": "Server Error",
+      "notes": "",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [],
+      "score": 0.17,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1019",
+      "issue_type": "payment",
+      "sub_issue": "UPI Failed",
+      "notes": "typo",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1020",
+      "issue_type": "delivery",
+      "sub_issue": "Wrong Address",
+      "notes": "typo",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1021",
+      "issue_type": "Delivery",
+      "sub_issue": "No Tracking",
+      "notes": "missing order id + non-standard status",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "classification",
+        "priority"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1022",
+      "issue_type": "Payment",
+      "sub_issue": "Refund Delay",
+      "notes": "missing customer id + priority not standardized",
+      "flagged": true,
+      "flagged_fields": [
+        "response",
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.5975,
+      "status": "PASS"
+    },
+    {
+      "ticket_id": "tkt-1023",
+      "issue_type": "Prime",
+      "sub_issue": "Subscription",
+      "notes": "resolved before created",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "priority"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1024",
+      "issue_type": "General",
+      "sub_issue": "Damaged Item",
+      "notes": "missing issue type",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "department"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1025",
+      "issue_type": "Delivery",
+      "sub_issue": "Late Delivery",
+      "notes": "SLA breach",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [],
+      "score": 0.17,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1026",
+      "issue_type": "Return",
+      "sub_issue": "Pickup Failed",
+      "notes": "invalid month in date",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [],
+      "score": 0.17,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1027",
+      "issue_type": "Payment",
+      "sub_issue": "Promo Code",
+      "notes": "rating out of range",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "classification"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1028",
+      "issue_type": "Delivery",
+      "sub_issue": "Missing Items",
+      "notes": "unexpected status for ticket",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "department"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1029",
+      "issue_type": "Login",
+      "sub_issue": "OTP Issue",
+      "notes": "decimal rating",
+      "flagged": true,
+      "flagged_fields": [
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.04,
+      "status": "FAIL"
+    },
+    {
+      "ticket_id": "TKT-1030",
+      "issue_type": "Payment",
+      "sub_issue": "Double Charge",
+      "notes": "negative amount",
+      "flagged": true,
+      "flagged_fields": [
+        "response",
+        "resolution_actions"
+      ],
+      "injected_errors": [
+        "response"
+      ],
+      "score": 0.5975,
+      "status": "PASS"
+    }
+  ]
+}

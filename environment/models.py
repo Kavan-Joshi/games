@@ -4,31 +4,21 @@ from enum import Enum
 
 
 class TaskType(str, Enum):
-    CLASSIFICATION = "classification"
-    ROUTING_RESPONSE = "routing_response"
-    FULL_RESOLUTION = "full_resolution"
+    INSPECTION_EASY = "inspection_easy"
+    INSPECTION_HARD = "inspection_hard"
+    INSPECTION_ADVERSARIAL = "inspection_adversarial"
 
 
-class Category(str, Enum):
-    BILLING = "billing"
-    TECHNICAL = "technical"
-    ACCOUNT = "account"
-    PRODUCT = "product"
-    SHIPPING = "shipping"
-
-
-class Priority(str, Enum):
-    LOW = "low"
-    MEDIUM = "medium"
-    HIGH = "high"
-    URGENT = "urgent"
-
-
-class CustomerTier(str, Enum):
-    BRONZE = "bronze"
-    SILVER = "silver"
-    GOLD = "gold"
-    PLATINUM = "platinum"
+class ErrorType(str, Enum):
+    CLASSIFICATION_WRONG = "classification_wrong"
+    PRIORITY_OFF = "priority_off"
+    DEPARTMENT_WRONG = "department_wrong"
+    RESPONSE_MISSING_APOLOGY = "response_missing_apology"
+    RESPONSE_TOO_VAGUE = "response_too_vague"
+    RESPONSE_NO_PERSONALIZATION = "response_no_personalization"
+    RESOLUTION_INCOMPLETE = "resolution_incomplete"
+    ESCALATION_MISSING = "escalation_missing"
+    CLEAN_BUT_SUSPICIOUS = "clean_but_suspicious"
 
 
 class Ticket(BaseModel):
@@ -55,29 +45,61 @@ class CustomerHistory(BaseModel):
     escalation_history: List[str]
 
 
-class Observation(BaseModel):
-    task_id: str
-    task_type: str
-    ticket: Ticket
-    instructions: str
-    available_categories: List[str] = Field(default_factory=lambda: [c.value for c in Category])
-    available_priorities: List[str] = Field(default_factory=lambda: [p.value for p in Priority])
-    available_departments: List[str] = Field(default_factory=lambda: [
-        "finance", "engineering", "account_management", "product_team", "logistics",
-        "general_support", "billing_support", "technical_support",
-    ])
-    customer_history: Optional[CustomerHistory] = None
-    step_number: int = 0
-    max_steps: int = 1
-
-
-class Action(BaseModel):
+class WorkerResponse(BaseModel):
     classification: Optional[str] = None
     priority: Optional[str] = None
     department: Optional[str] = None
     response: Optional[str] = None
     resolution_actions: Optional[List[str]] = None
-    internal_notes: Optional[str] = None
+
+
+class InspectorAction(BaseModel):
+    flagged: bool = False
+    flagged_fields: List[str] = Field(default_factory=list)
+    issues: List[Dict[str, str]] = Field(default_factory=list)
+    suggested_corrections: Dict[str, Any] = Field(default_factory=dict)
+    confidence: float = Field(default=0.5, ge=0.0, le=1.0)
+
+
+class InspectorObservation(BaseModel):
+    task_id: str
+    task_type: str
+    ticket: Ticket
+    worker_response: WorkerResponse
+    available_categories: List[str] = Field(default_factory=lambda: [
+        "billing", "technical", "account", "product", "shipping"
+    ])
+    available_priorities: List[str] = Field(default_factory=lambda: [
+        "low", "medium", "high", "urgent"
+    ])
+    available_departments: List[str] = Field(default_factory=lambda: [
+        "finance", "engineering", "account_management", "product_team",
+        "logistics", "billing_support", "technical_support", "general_support",
+    ])
+    instructions: str = ""
+    step_number: int = 0
+    max_steps: int = 3
+    hints: List[str] = Field(default_factory=list)
+    previous_score: float = 0.0
+
+
+class ResetRequest(BaseModel):
+    task: str = "inspection_easy"
+    seed: Optional[int] = None
+
+
+class ResetResponse(BaseModel):
+    observation: InspectorObservation
+    reward: float = 0.0
+    done: bool = False
+    info: Dict[str, Any] = Field(default_factory=dict)
+
+
+class StepResponse(BaseModel):
+    observation: InspectorObservation
+    reward: float
+    done: bool
+    info: Dict[str, Any] = Field(default_factory=dict)
 
 
 class GraderComponentScore(BaseModel):
@@ -93,20 +115,10 @@ class GraderResult(BaseModel):
     task_type: str
 
 
-class StepResponse(BaseModel):
-    observation: Observation
-    reward: float
-    done: bool
-    info: Dict[str, Any] = Field(default_factory=dict)
-
-
-class ResetResponse(BaseModel):
-    observation: Observation
-    reward: float = 0.0
-    done: bool = False
-    info: Dict[str, Any] = Field(default_factory=dict)
-
-
-class ResetRequest(BaseModel):
-    task: str = "classification"
-    seed: Optional[int] = None
+class InjectedError(BaseModel):
+    error_type: ErrorType
+    field: str
+    ground_truth_value: Any
+    corrupted_value: Any
+    subtlety: int = Field(ge=1, le=3)
+    description: str = ""

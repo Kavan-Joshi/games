@@ -1,25 +1,32 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
 
-*.so
+fleet_ai_model/
+fleet_ai_model_sft/
+fleet_ai_model_merged/
+
+training_data.json
+baseline_results.json
+evaluation_results.json
+demo_results.json
+fleet_ai_results.json
+generation_log.json
+trained_results.json
+uv.lock
 
 .env
 .venv/
 venv/
-env.bak/
-venv.bak/
 
-*.egg-info/
-dist/
-build/
+.wandb/
+runs/
 
-*.log
-
-.vscode/
-.idea/
-*.swp
-*.swo
-
-.DS_Store
-Thumbs.db
+*.bin
+*.safetensors
+*.gguf
